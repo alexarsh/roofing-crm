@@ -3,16 +3,14 @@
  *
  * Usage: `npm run db:seed`
  */
-import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
 import { KNOWLEDGE_DOCS } from "../lib/agent/knowledge-docs";
+import { getDb } from "../lib/db/client";
 import { knowledgeChunks } from "../lib/db/schema";
 
 async function main(): Promise<void> {
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is required");
-  const pool = new Pool({ connectionString: url, max: 1 });
-  const db = drizzle({ client: pool });
+  // `getDb` picks the Neon HTTP driver for Neon URLs (works through networks that
+  // block the Postgres port) and the `pg` pool for local Postgres.
+  const db = getDb();
   for (const doc of KNOWLEDGE_DOCS) {
     await db
       .insert(knowledgeChunks)
@@ -35,7 +33,6 @@ async function main(): Promise<void> {
       });
   }
   console.log(`seeded ${KNOWLEDGE_DOCS.length} knowledge chunks`);
-  await pool.end();
 }
 
 main().catch((err: unknown) => {
