@@ -86,7 +86,9 @@ export function ResultsPanel(props: ResultsPanelProps) {
               <strong className="text-[var(--ink)]">{formatInt(result.totals.total)}</strong> match
               {result.truncated ? ` (showing top ${result.rows.length})` : ""}
             </span>
-            <span>{formatInt(result.totals.agedRoofs)} aged roofs</span>
+            <span>
+              {formatInt(result.totals.agedRoofs)} roofs &ge; {result.params.roofAgeMin} y
+            </span>
             <span>{formatInt(result.totals.openPermits)} open permits</span>
             <span>{formatInt(result.totals.longOpenPermits)} long-open</span>
             <span>{formatInt(result.totals.outOfStateOwners)} out-of-state owners</span>
@@ -146,6 +148,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
       <div className="flex gap-3 px-3 py-1 text-[10px] text-[var(--muted)]">
         <span>sort:</span>
         {header("priority", "priority")}
+        {header("roofAge", "roof age")}
         {header("value", "value")}
         {header("distance", "distance")}
       </div>
@@ -213,6 +216,15 @@ export function ResultsPanel(props: ResultsPanelProps) {
               <div>
                 <div className="font-medium">
                   {r.roofAgeYears === null ? "unknown" : `${r.roofAgeYears} y`}
+                  {r.openRoofPermitCount > 0 &&
+                    (r.roofAgeYears ?? -1) < (result?.params.roofAgeMin ?? 0) && (
+                      <span
+                        className="ml-1 rounded border border-gray-200 bg-gray-50 px-1 py-px text-[10px] font-normal text-[var(--muted)]"
+                        title={`Below the ${result?.params.roofAgeMin ?? 0} y threshold; listed because of an open roofing permit`}
+                      >
+                        permit only
+                      </span>
+                    )}
                 </div>
                 <div className="text-[var(--muted)]">{r.roofAgeBasis.replace("_", " ")}</div>
               </div>

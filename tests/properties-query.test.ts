@@ -56,6 +56,19 @@ describe("buildCandidateQuery", () => {
     expect(sql).toContain("property_type = 'residential'");
     expect(sql).not.toContain("roof_age_years >= 20 OR");
   });
+  it("agedRoofsOnly drops the open-permit OR branch so the threshold drives the list", () => {
+    const { sql } = buildCandidateQuery({ ...base, agedRoofsOnly: "true", roofAgeMin: 40 });
+    expect(sql).toContain("roof_age_years >= 40");
+    expect(sql).not.toContain("OR open_roof_permit_count");
+    expect(sql).not.toMatch(/AND open_roof_permit_count > 0/);
+    // openPermitsOnly still works on its own; agedRoofsOnly wins when both are sent.
+    expect(buildCandidateQuery({ ...base, openPermitsOnly: true }).sql).toMatch(
+      /AND open_roof_permit_count > 0/,
+    );
+    expect(
+      buildCandidateQuery({ ...base, openPermitsOnly: true, agedRoofsOnly: true }).sql,
+    ).toContain("roof_age_years >= 15");
+  });
   it("adds the BBB-rated-contractor filter and count", () => {
     const { sql } = buildCandidateQuery({ ...base, ratedContractorOnly: "true" });
     expect(sql).toContain("has_bbb_contractor = true");

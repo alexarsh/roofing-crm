@@ -142,9 +142,30 @@ export function SearchControls({
           <input
             type="checkbox"
             checked={form.openPermitsOnly}
-            onChange={(e) => onChange({ openPermitsOnly: e.target.checked })}
+            onChange={(e) =>
+              onChange({
+                openPermitsOnly: e.target.checked,
+                ...(e.target.checked ? { agedRoofsOnly: false } : {}),
+              })
+            }
           />
           Open roofing permits only
+        </label>
+        <label
+          className="flex items-center gap-2"
+          title="Hide parcels that qualify only because of an open permit"
+        >
+          <input
+            type="checkbox"
+            checked={form.agedRoofsOnly}
+            onChange={(e) =>
+              onChange({
+                agedRoofsOnly: e.target.checked,
+                ...(e.target.checked ? { openPermitsOnly: false } : {}),
+              })
+            }
+          />
+          Aged roofs only (hide permit-only matches)
         </label>
         <label className="flex items-center gap-2">
           <input

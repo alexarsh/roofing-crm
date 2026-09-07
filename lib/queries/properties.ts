@@ -42,6 +42,8 @@ export const searchParamsSchema = z.object({
   roofAgeMin: z.coerce.number().int().min(0).max(150).default(OSCEOLA.thresholds.roofAgeYears),
   /** Only properties with at least one open roofing permit. */
   openPermitsOnly: boolParam.default(false),
+  /** Only roofs at/over the threshold; hides parcels that qualify by open permit alone. */
+  agedRoofsOnly: boolParam.default(false),
   /** Only properties whose oldest open roofing permit is at least this many years old. */
   longOpenYears: nullableNumParam(0, 50).default(null),
   ownerOutOfState: boolParam.default(false),
@@ -73,7 +75,9 @@ function whereClause(p: SearchParams): string {
   ];
   const roofAge = int(p.roofAgeMin, { min: 0, max: 150 });
   const leadSignals = [`roof_age_years >= ${roofAge}`, "open_roof_permit_count > 0"];
-  if (p.openPermitsOnly || p.longOpenYears !== null) {
+  if (p.agedRoofsOnly) {
+    clauses.push(`roof_age_years >= ${roofAge}`);
+  } else if (p.openPermitsOnly || p.longOpenYears !== null) {
     clauses.push("open_roof_permit_count > 0");
   } else {
     clauses.push(`(${leadSignals.join(" OR ")})`);

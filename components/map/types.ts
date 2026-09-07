@@ -6,6 +6,7 @@ export interface SearchForm {
   radiusMiles: number;
   roofAgeMin: number;
   openPermitsOnly: boolean;
+  agedRoofsOnly: boolean;
   longOpenEnabled: boolean;
   longOpenYears: number;
   ownerOutOfState: boolean;
