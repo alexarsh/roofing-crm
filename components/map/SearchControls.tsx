@@ -132,6 +132,11 @@ export function SearchControls({
           onChange={(e) => onChange({ roofAgeMin: Number(e.target.value) })}
           className="w-full accent-[var(--brand)]"
         />
+        <p className="mt-1 text-xs text-[var(--muted)]">
+          {form.agedRoofsOnly
+            ? "Only roofs at or above this age are listed."
+            : "Roofs at or above this age, plus any property with an open roofing permit (marked \u201cpermit only\u201d). Tick \u201cAged roofs only\u201d to hide permit-only matches."}
+        </p>
       </div>
 
       <fieldset className="flex flex-col gap-2">
