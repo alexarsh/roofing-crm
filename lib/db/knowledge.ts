@@ -48,12 +48,28 @@ export async function seedKnowledge(db: Db = getDb()): Promise<number> {
 
 let seeded: Promise<void> | null = null;
 
-/** Seed once per process when the index is empty (keeps the demo self-healing). */
+/**
+ * Seed once per process: inserts missing chunks and upserts any whose text differs from the
+ * bundled docs (so a redeploy with refreshed documentation updates the index without a
+ * manual `db:seed`). Cheap: the corpus is a handful of rows.
+ */
 async function ensureSeeded(db: Db): Promise<void> {
   if (!seeded) {
     seeded = (async () => {
-      const [row] = await db.select({ n: sql<number>`count(*)` }).from(knowledgeChunks);
-      if (Number(row?.n ?? 0) < KNOWLEDGE_DOCS.length) await seedKnowledge(db);
+      const rows = await db
+        .select({
+          id: knowledgeChunks.id,
+          body: knowledgeChunks.body,
+          section: knowledgeChunks.section,
+          title: knowledgeChunks.title,
+        })
+        .from(knowledgeChunks);
+      const current = new Map(rows.map((r) => [r.id, r]));
+      const stale = KNOWLEDGE_DOCS.some((d) => {
+        const r = current.get(d.id);
+        return !r || r.body !== d.body || r.section !== d.section || r.title !== d.title;
+      });
+      if (stale) await seedKnowledge(db);
     })().catch((err: unknown) => {
       seeded = null;
       throw err;

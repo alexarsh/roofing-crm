@@ -219,19 +219,34 @@ parquet artifacts.
   the assignment requires zero standing cost and there is no AWS account; the app is a single Next.js
   project rather than a tRPC monorepo for the same reason.
 
-## Observed numbers (local run against the 2026-09-07 query tables)
+## Observed numbers
 
-- Dataset: 210,853 properties (210,141 geocoded; roof age known for 170,813; 201 parcels with an
-  open roofing permit; 34,846 out-of-state owners). Permits: 317,197 (14,735 roofing, 329 open
-  roofing, 15 open >= 5 years); **no permit row carries a BBB match in this run**, so every BBB
-  field renders "not available".
-- Radius search 5 mi around Kissimmee, roof age >= 15: **39,375 candidates** (39,267 aged roofs,
-  117 with open roofing permits, 6 long-open >= 5 y, 5,520 out-of-state owners); the UI shows the
-  top 500 by priority and the totals.
+**Numbers as of pipeline run `2026-09-07T11-47-45Z-incremental` (root CID
+`bafybeieyru5hga3ypyatj2r342hejqifid65bw3rrff5ini2bfk4qifhwy`), read from the live app
+(https://roofing-crm-eight.vercel.app) and the hosted MCP.** The pipeline republishes the
+dataset as new immutable CIDs and the CRM follows whatever the hosted MCP serves, so these
+figures move over time without a CRM redeploy; the CID above is the snapshot they describe.
+
+- Dataset: 210,853 properties (210,141 geocoded; roof age known for 170,780 - basis
+  `built_year` 164,918, `roof_permit` 5,862, `unknown` 40,073); 456 parcels with an open
+  roofing permit (13 open >= 5 years); 34,846 out-of-state owners; 61,973 parcels with no sale
+  in 10+ years; 2,121 parcels have at least one BBB-rated contractor on a permit.
+- Permits: 318,995 (317,197 from the appraiser feed + 1,798 from the Accela portal, 306 of
+  those open); 16,534 roofing, 635 open roofing, 15 open roofing permits >= 5 years; contractor
+  name recorded on 42,740; 311,156 geocoded.
+- **BBB coverage:** 2,215 permits carry a BBB rating (1,798 of them roofing), across 253 distinct
+  contractor ids on permits (the pipeline's contractors table reports 285 BBB-matched entities).
+  Match methods: license 1,520 permits / 173 contractors, normalised name 684 / 76, phone 11 / 4.
+  Rating mix: A+ 1,636, A 308, B- 120, A- 88, F 35, D- 12, B+ 10, C 6. Permits without a match
+  still render "BBB rating: not available".
+- Radius search 5 mi around Kissimmee, roof age >= 15 (live `/api/search`): **39,496
+  candidates** (39,454 aged roofs, 200 with open roofing permits, 6 long-open >= 5 y, 5,522
+  out-of-state owners); the UI shows the top 500 by priority plus these totals.
 - Long-open only (>= 5 y): 6 parcels; top is 333 W Columbia Ave, Kissimmee (3 open roofing
-  permits, oldest 10,177 days / 27.9 y, permit 98-3642).
-- Assistant tool query "open roofing permits older than five years within five miles of
-  Kissimmee": 8 permits.
+  permits, oldest permit 98-3642 at 10,177 days ≈ 27.9 y; roof age 42 y on a `built_year`
+  basis in this run). Within the same 5 mi: 103,212 permits, 8,953 roofing, 317 open roofing,
+  8 open roofing permits >= 5 y (none with a recorded BBB match); 1,224 permits with a BBB
+  rating, 1,144 of them roofing.
 
 ## Notes
 
@@ -245,8 +260,9 @@ parquet artifacts.
 
 ## Limitations
 
-- BBB ratings, contractor phone/license are displayed when present but are NULL for all rows in
-  the current run; the UI says "not available" rather than inferring.
+- BBB ratings and contractor phone/license are shown when present (about 0.7% of permits carry a
+  rating in the current run, concentrated on recent Accela and appraiser roofing permits); older
+  permits often have no contractor recorded, and the UI says "not available" rather than inferring.
 - The MCP server caps a query at 1000 rows; the map shows the top 500 by priority plus exact totals.
 - Geocoding is limited to the county's named places; the assistant asks for coordinates otherwise.
 - The county selector is fixed to Osceola; other counties are visible but disabled.
