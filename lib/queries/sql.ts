@@ -56,8 +56,10 @@ export function ilikeTerm(value: unknown, maxLen = 80): string {
 }
 
 /**
- * Defense in depth for agent-authored SQL: a single read-only SELECT/WITH statement,
- * no comments, no mutation keywords. The MCP server enforces the same contract.
+ * Defence in depth for agent-authored SQL: a single read-only SELECT/WITH statement,
+ * no comments, no mutation / administrative keywords, no file or network table functions.
+ * This is a coarse token filter, not a parser; the MCP server's own read-only enforcement
+ * and row cap are the real guard.
  */
 export function assertReadOnlySelect(sql: string): string {
   const trimmed = sql.trim().replace(/;+\s*$/, "");
@@ -66,11 +68,19 @@ export function assertReadOnlySelect(sql: string): string {
   if (trimmed.includes(";")) throw new RangeError("Only a single statement is allowed");
   if (/--|\/\*/.test(trimmed)) throw new RangeError("SQL comments are not allowed");
   if (
-    /\b(insert|update|delete|drop|alter|create|attach|copy|pragma|install|load|export|import)\b/i.test(
+    /\b(insert|update|delete|drop|alter|create|attach|detach|copy|pragma|install|load|export|import|call|set|reset|vacuum|checkpoint)\b/i.test(
       trimmed,
     )
   ) {
     throw new RangeError("Mutating or administrative statements are not allowed");
+  }
+  // DuckDB table functions / extensions that could read arbitrary files or URLs.
+  if (
+    /\b(read_parquet|read_csv|read_csv_auto|read_json|read_json_auto|read_text|read_blob|parquet_scan|glob|httpfs|sniff_csv)\b/i.test(
+      trimmed,
+    )
+  ) {
+    throw new RangeError("File and network table functions are not allowed");
   }
   return trimmed;
 }

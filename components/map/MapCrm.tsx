@@ -78,28 +78,38 @@ export function MapCrm() {
     null,
   );
   const abortRef = useRef<AbortController | null>(null);
+  const seqRef = useRef(0);
 
-  // Debounced search whenever the pin or filters change.
+  // Debounced, latest-wins search whenever the pin or filters change: any change while a
+  // request is in flight aborts it and re-runs with the newest filters; a stale response
+  // that still arrives is ignored via the sequence number.
   useEffect(() => {
     if (!center) return;
     const handle = setTimeout(async () => {
       abortRef.current?.abort();
       const ac = new AbortController();
       abortRef.current = ac;
+      const seq = ++seqRef.current;
       setLoading(true);
       setError(null);
       try {
         const res = await fetch(`/api/search?${toQuery(center, form)}`, { signal: ac.signal });
         const body = (await res.json()) as SearchResponse & { error?: string };
+        if (seq !== seqRef.current) return; // superseded by a newer search
         if (!res.ok) throw new Error(body.error ?? `Search failed (${res.status})`);
         setResult(body);
       } catch (err) {
-        if ((err as Error).name !== "AbortError") setError((err as Error).message);
+        if ((err as Error).name !== "AbortError" && seq === seqRef.current) {
+          setError((err as Error).message);
+        }
       } finally {
-        if (!ac.signal.aborted) setLoading(false);
+        if (seq === seqRef.current) setLoading(false);
       }
     }, 350);
-    return () => clearTimeout(handle);
+    return () => {
+      clearTimeout(handle);
+      abortRef.current?.abort();
+    };
   }, [center, form]);
 
   // Property drawer fetch.
@@ -111,7 +121,9 @@ export function MapCrm() {
     let cancelled = false;
     setDetailLoading(true);
     setDetailError(null);
-    fetch(`/api/properties/${encodeURIComponent(activeParcel)}`)
+    const q = new URLSearchParams({ roofAgeMin: String(form.roofAgeMin) });
+    if (form.longOpenEnabled) q.set("longOpenYears", String(form.longOpenYears));
+    fetch(`/api/properties/${encodeURIComponent(activeParcel)}?${q}`)
       .then(async (res) => {
         const body = (await res.json()) as PropertyDetailResponse & { error?: string };
         if (!res.ok) throw new Error(body.error ?? `Failed (${res.status})`);
@@ -122,7 +134,7 @@ export function MapCrm() {
     return () => {
       cancelled = true;
     };
-  }, [activeParcel]);
+  }, [activeParcel, form.roofAgeMin, form.longOpenEnabled, form.longOpenYears]);
 
   const useMyLocation = useCallback(() => {
     if (!navigator.geolocation) {

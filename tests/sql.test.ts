@@ -52,4 +52,17 @@ describe("assertReadOnlySelect", () => {
     expect(() => assertReadOnlySelect("select 1 into outfile")).not.toThrow(); // DuckDB has no OUTFILE; server also guards
     expect(() => assertReadOnlySelect("COPY properties TO 'x'")).toThrow();
   });
+  it("rejects file / network table functions and extension loading", () => {
+    expect(() => assertReadOnlySelect("SELECT * FROM read_parquet('s3://x/y.parquet')")).toThrow(
+      /table functions/,
+    );
+    expect(() => assertReadOnlySelect("SELECT * FROM read_csv_auto('/etc/passwd')")).toThrow();
+    expect(() => assertReadOnlySelect("SELECT * FROM glob('/**')")).toThrow();
+    expect(() => assertReadOnlySelect("INSTALL httpfs")).toThrow();
+    expect(() => assertReadOnlySelect("LOAD httpfs")).toThrow();
+    expect(() => assertReadOnlySelect("SELECT httpfs FROM x")).toThrow();
+    expect(() =>
+      assertReadOnlySelect("SELECT count(*) FROM properties WHERE address_city ILIKE '%read%'"),
+    ).not.toThrow();
+  });
 });

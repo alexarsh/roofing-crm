@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { LeadFilters } from "@/components/leads/LeadFilters";
 import { LeadsTable } from "@/components/leads/LeadsTable";
+import { StatusSummary } from "@/components/leads/StatusSummary";
 import { hasDatabase } from "@/lib/db/client";
 import { leadFilterSchema, leadStatusCounts, listLeads } from "@/lib/db/leads";
-import { LEAD_STATUSES } from "@/lib/db/schema";
 
 export const dynamic = "force-dynamic";
 
@@ -33,15 +33,12 @@ export default async function LeadsPage({
   }
 
   const [leads, counts] = await Promise.all([listLeads(filters), leadStatusCounts()]);
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
     <div className="p-4 md:p-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold">Leads</h1>
-          <p className="text-sm text-[var(--muted)]">
-            {total} total · {LEAD_STATUSES.map((s) => `${counts[s]} ${s}`).join(" · ")}
-          </p>
+          <StatusSummary counts={counts} />
         </div>
       </div>
       <div className="mt-4 rounded-lg border border-[var(--line)] bg-[var(--panel)] p-3">

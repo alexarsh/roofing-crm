@@ -204,7 +204,7 @@ function Inline({ text }: { text: string }) {
   );
 }
 
-/** RAG assistant chat (Vercel AI SDK `useChat`). Shows tool calls and SQL inline. */
+/** Assistant chat (Vercel AI SDK `useChat`): a tool-using SQL agent with a documentation knowledge index. Shows tool calls and SQL inline. */
 export function Chat({ enabled, model }: { enabled: boolean; model: string }) {
   const transport = useMemo(() => new DefaultChatTransport({ api: "/api/chat" }), []);
   const { messages, sendMessage, status, error, stop } = useChat({ transport });
@@ -224,9 +224,10 @@ export function Chat({ enabled, model }: { enabled: boolean; model: string }) {
           <div className="mx-auto max-w-2xl rounded-lg border border-[var(--line)] bg-[var(--panel)] p-4">
             <h2 className="text-sm font-semibold">Ask about roofing opportunities</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">
-              The assistant restates your question, resolves places, runs read-only SQL through the
-              Elephant MCP server, grounds explanations in the dataset documentation and cites
-              source URLs. Every tool call and SQL statement is shown in the transcript.
+              A tool-using SQL agent with a documentation knowledge index (lexical retrieval): it
+              restates your question, resolves places, runs read-only SQL through the Elephant MCP
+              server, grounds explanations in the dataset documentation and cites each row&apos;s
+              source URL. Every tool call and SQL statement is shown in the transcript.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               {SUGGESTED_PROMPTS.map((s) => (

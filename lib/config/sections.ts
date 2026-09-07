@@ -33,7 +33,7 @@ export const PRIMARY_NAV: readonly NavItem[] = [
   {
     href: "/assistant",
     label: "Assistant",
-    description: "Ask questions in natural language",
+    description: "Tool-using SQL agent with a documentation knowledge index",
     enabled: true,
   },
 ];

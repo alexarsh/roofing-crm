@@ -58,6 +58,10 @@ This repository now contains the working Roofing CRM described above: a single N
 dataset **only through the Elephant MCP server** and keeps its own CRM records in Postgres via
 Drizzle ORM.
 
+- **Live app:** https://roofing-crm-eight.vercel.app
+- **Hosted Elephant MCP (Osceola query tables):** https://osceola-mcp.vercel.app/mcp
+- **Local MCP for development:** `http://localhost:8877/mcp` (see Local development)
+
 ## Routes
 
 | Route                                                         | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -65,7 +69,7 @@ Drizzle ORM.
 | `/`                                                           | **Map CRM.** MapLibre GL over OSM raster tiles, centred on Osceola County (county selector lists other counties disabled). "Use my location" (browser geolocation, clamped to the county), click-to-drop / drag pin, radius slider 0.5–15 mi, roof-age threshold (default 15 y), toggles for open roofing permits, long-open permits (>= N years, default 5), owner out of state, no sale in 10+ years, property type. Results panel with totals, sortable candidate list, multi-select and **Create leads**. Markers are coloured by lead signal. Clicking a row/marker opens the property drawer: roof age + basis, owner/tenure, values, every permit with status, dates, days open, contractor name/qualifier/phone/license, BBB rating/accredited/profile (or "not available"), and source links. |
 | `/leads`                                                      | **Leads list** with filters (status, roof age, permit status / open duration, radius from a named place), inline status changes, per-status counts.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `/leads/[id]`                                                 | **Lead detail**: snapshot of the property, the roofing-permit snapshot taken at creation (contractor + BBB columns), activity timeline, add note, delete, deep link back to the map.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `/assistant`                                                  | **RAG agent** (Vercel AI SDK `useChat` + `streamText`, `@ai-sdk/anthropic`). Shows every tool call and SQL statement inline. Renders a clear notice when `ANTHROPIC_API_KEY` is absent.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `/assistant`                                                  | **Assistant**: a tool-using SQL agent with a documentation knowledge index (lexical retrieval), built on the Vercel AI SDK (`useChat` + `streamText`, `@ai-sdk/anthropic`). Shows every tool call and SQL statement inline and cites each row's source URL. Renders a clear notice when `ANTHROPIC_API_KEY` is absent.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `/coming-soon/{outreach,quotes,crews,reporting}`              | Placeholder pages for the **disabled future sections** shown greyed-out in the sidebar (tooltips say "coming soon"); each explains what it would do and what it depends on.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `/api/search`, `/api/properties/[parcelId]`                   | Read-only JSON over MCP (radius candidates + totals; property detail + permits).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `/api/leads`, `/api/leads/[id]`, `/api/leads/[id]/activities` | CRM CRUD (create from one or many parcels, list with filters, status update, note, delete).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -94,8 +98,10 @@ tests/                  Vitest: SQL builders, haversine, mappers, geocoder, agen
 `findPropertiesInArea` (`lib/mcp/client.ts`). No parquet, IPFS, DuckDB or Neon query-db access
 exists in this app. SQL sent to MCP is generated by tested builders that interpolate only
 validated numbers, whitelisted enums and pattern-checked identifiers; free text is escaped for
-`ILIKE`. Agent-authored SQL additionally passes `assertReadOnlySelect` before it leaves the app,
-and the MCP server enforces single read-only SELECT with a 1000-row cap.
+`ILIKE`. Agent-authored SQL additionally passes `assertReadOnlySelect` (a coarse token filter that
+rejects mutations, multi-statements, comments and file/network table functions such as
+`read_parquet`, `read_csv`, `httpfs`, `install`, `load`) as defence in depth; the MCP server's
+own read-only enforcement and 1000-row cap are the real guard.
 
 **Lead signals.** A candidate matches when it is inside the radius and (`roof_age_years >=
 threshold` OR it has an open roofing permit). Signal = `long_open_permit` (oldest open roofing
@@ -112,7 +118,8 @@ contractor name/qualifier/phone/license, bbb_rating/accredited/profile_url, sour
 `lead_activities` (created / note / status_change), `knowledge_chunks` (documentation chunks with
 a generated weighted `tsvector` + GIN index).
 
-**Retrieval design (assistant).**
+**Assistant design.** The assistant is a tool-using SQL agent with a documentation knowledge
+index (lexical retrieval) rather than a vector-RAG system:
 
 1. Structured retrieval tools over MCP: `getSchema`, `queryProperties`, `queryPermits`,
    `findPropertiesInArea`, plus `searchRoofingLeads` / `searchOpenRoofPermits` that reuse the
@@ -126,22 +133,33 @@ a generated weighted `tsvector` + GIN index).
    SELECT, capped rows, cite `source_url(s)`, list assumptions and missing data. Model:
    `claude-sonnet-4-5` unless `AGENT_MODEL` is set; up to 10 tool steps per turn.
 
+**Data caveats.** BBB ratings exist only where a permit's contractor could be matched to a
+BBB profile, by state license number first, then phone, then normalised business name; the UI
+and the assistant show the match method (`bbb_match_method`) next to the rating and print
+"not available" otherwise - a missing rating means "not matched", not "unrated". Roof age is a
+derived signal and its basis is shown on every row and in the drawer: `roof_permit` (years since
+the latest roofing permit), `built_year` (year built used as a proxy - it over-estimates roof age
+when a roof was replaced without a permit) or `unknown` (no roof age; such parcels are never
+qualified by age). Contractor name/phone/license are as recorded on the permit and are often
+absent on older appraiser-feed permits. Permit "days open" counts to the pipeline run date.
+
 ## Environment variables
 
-| Variable                | Purpose                                                                 | Default                                   |
-| ----------------------- | ----------------------------------------------------------------------- | ----------------------------------------- |
-| `ORACLE_MCP_URL`        | Elephant MCP streamable-HTTP endpoint                                   | `http://localhost:8877/mcp`               |
-| `ORACLE_MCP_AUTH_TOKEN` | Optional bearer token for the MCP server                                | –                                         |
-| `ORACLE_MCP_COUNTY`     | County key served by the MCP query tables                               | `osceola`                                 |
-| `DATABASE_URL`          | Postgres for leads / activities / knowledge index                       | – (required for CRM features)             |
-| `DB_DRIVER`             | `pg` (node-postgres) or `neon` (`@neondatabase/serverless` HTTP driver) | `pg` (auto-`neon` for `*.neon.tech` URLs) |
-| `ANTHROPIC_API_KEY`     | Enables the assistant                                                   | – (UI shows a notice when absent)         |
-| `AGENT_MODEL`           | Anthropic model id for the assistant                                    | `claude-sonnet-4-5`                       |
+| Variable                | Purpose                                                                                                                     | Default                                    |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------ |
+| `ORACLE_MCP_URL`        | Elephant MCP streamable-HTTP endpoint. Hosted: `https://osceola-mcp.vercel.app/mcp`; local dev: `http://localhost:8877/mcp` | `http://localhost:8877/mcp` (code default) |
+| `ORACLE_MCP_AUTH_TOKEN` | Optional bearer token for the MCP server                                                                                    | –                                          |
+| `ORACLE_MCP_COUNTY`     | County key served by the MCP query tables                                                                                   | `osceola`                                  |
+| `DATABASE_URL`          | Postgres for leads / activities / knowledge index                                                                           | – (required for CRM features)              |
+| `DB_DRIVER`             | `pg` (node-postgres) or `neon` (`@neondatabase/serverless` HTTP driver)                                                     | `pg` (auto-`neon` for `*.neon.tech` URLs)  |
+| `ANTHROPIC_API_KEY`     | Enables the assistant                                                                                                       | – (UI shows a notice when absent)          |
+| `AGENT_MODEL`           | Anthropic model id for the assistant                                                                                        | `claude-sonnet-4-5`                        |
 
 ## Local development
 
 ```bash
-# 1. Elephant MCP server (from the sibling pipeline's published query tables)
+# 1. Elephant MCP server - either point ORACLE_MCP_URL at the hosted server
+#    (https://osceola-mcp.vercel.app/mcp) or run it locally on 8877 from the pipeline's tables:
 cd ../elephant-mcp && R=../osceola/artifacts/runs/<run>/query-tables && \
   MCP_HTTP_STANDALONE=1 PORT=8877 \
   PROPERTY_QUERY_TABLE_MAP="{\"osceola\":\"$R/properties.parquet\"}" \
@@ -162,6 +180,9 @@ npm run dev                       # http://localhost:3000
 # Quality gates
 npm run typecheck && npm run lint && npm run format:check && npm test && npm run build
 npm run agent:smoke               # exercises the assistant tool layer without an LLM key
+# Route tests always cover request validation; set TEST_DATABASE_URL to also run the
+# create -> list -> status -> delete flow against a migrated Postgres:
+TEST_DATABASE_URL=postgres://postgres:crm@localhost:5433/postgres npm test
 ```
 
 ## Deploy (Vercel Hobby + Neon)
@@ -189,7 +210,7 @@ parquet artifacts.
   from the platform, checked-in migrations, `pg` locally / Neon driver in production.
 - **Testing** (`testing-strategy`): Vitest unit tests for builders, geo, mappers and agent tools
   (`MockLanguageModelV2` from `ai/test`); ESLint + Prettier + `tsc` in `.github/workflows/ci.yml`.
-- **Retrieval design** (`build-local-rag-pocs` principles): explicit data boundary, deterministic
+- **Assistant / retrieval design** (`build-local-rag-pocs` principles): explicit data boundary, deterministic
   chunk ids, metadata (source/title/section), lexical retrieval; no embeddings are used because the
   corpus is ten documentation chunks and the kit prefers not to send content to an embedding
   provider without an approved boundary. A vector index can be added later without changing the

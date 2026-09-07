@@ -4,6 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { LEAD_STATUSES, type LeadStatus } from "@/lib/db/schema";
 
+/** Window event fired after a successful inline status change (optimistic count updates). */
+export const LEAD_STATUS_EVENT = "crm:lead-status-changed";
+export interface LeadStatusChange {
+  leadId: number;
+  from: LeadStatus;
+  to: LeadStatus;
+}
+
 /** Inline status dropdown that PATCHes the lead and refreshes server data. */
 export function StatusSelect({
   leadId,
@@ -39,6 +47,11 @@ export function StatusSelect({
             });
             if (!res.ok)
               throw new Error(((await res.json()) as { error?: string }).error ?? "Update failed");
+            window.dispatchEvent(
+              new CustomEvent<LeadStatusChange>(LEAD_STATUS_EVENT, {
+                detail: { leadId, from: prev, to: next },
+              }),
+            );
             router.refresh();
           } catch (err) {
             setValue(prev);

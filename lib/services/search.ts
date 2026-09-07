@@ -72,15 +72,27 @@ export async function searchCandidates(
   };
 }
 
-/** Property detail with its permits. Returns `null` when the parcel is unknown. */
+/** Lead-signal thresholds used to classify a property (mirrors the map's filters). */
+export interface SignalThresholds {
+  roofAgeYears: number;
+  longOpenDays: number;
+}
+
+/** County default thresholds. */
+export const DEFAULT_THRESHOLDS: SignalThresholds = {
+  roofAgeYears: OSCEOLA.thresholds.roofAgeYears,
+  longOpenDays: OSCEOLA.thresholds.longOpenPermitYears * 365,
+};
+
+/**
+ * Property detail with its permits. Returns `null` when the parcel is unknown.
+ * Pass the user's current thresholds so the drawer's signal badge matches the list.
+ */
 export async function getPropertyDetail(
   parcelId: string,
   source: McpDataSource = mcp,
+  thresholds: SignalThresholds = DEFAULT_THRESHOLDS,
 ): Promise<{ property: PropertyCandidate; permits: PermitRecord[] } | null> {
-  const thresholds = {
-    roofAgeYears: OSCEOLA.thresholds.roofAgeYears,
-    longOpenDays: OSCEOLA.thresholds.longOpenPermitYears * 365,
-  };
   const res = await source.queryProperties(buildPropertyByIdQuery(parcelId), 1);
   const raw = res.rows[0];
   if (!raw) return null;

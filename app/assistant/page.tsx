@@ -3,7 +3,7 @@ import { getEnv, hasAnthropicKey } from "@/lib/config/env";
 
 export const dynamic = "force-dynamic";
 
-/** RAG assistant page. Renders a clear notice when the model key is absent. */
+/** Assistant page (tool-using SQL agent + documentation knowledge index). Renders a clear notice when the model key is absent. */
 export default function AssistantPage() {
   const enabled = hasAnthropicKey();
   const model = getEnv().AGENT_MODEL;
@@ -12,7 +12,8 @@ export default function AssistantPage() {
       <header className="border-b border-[var(--line)] bg-[var(--panel)] px-4 py-3">
         <h1 className="text-base font-semibold">Assistant</h1>
         <p className="text-xs text-[var(--muted)]">
-          Natural-language roofing-opportunity queries over the Osceola dataset.
+          Natural-language roofing-opportunity queries: a tool-using SQL agent over the Elephant MCP
+          dataset with a documentation knowledge index (lexical retrieval).
         </p>
       </header>
       {!enabled && (

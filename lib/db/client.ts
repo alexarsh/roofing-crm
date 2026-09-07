@@ -16,6 +16,7 @@ import * as schema from "./schema";
 export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 let cached: Db | null = null;
+let transactional = true;
 
 /** Error thrown when `DATABASE_URL` is not configured. */
 export class DatabaseNotConfiguredError extends Error {
@@ -31,12 +32,24 @@ export function getDb(): Db {
   const env = getEnv();
   if (!env.DATABASE_URL) throw new DatabaseNotConfiguredError();
   if (env.DB_DRIVER === "neon" || /neon\.tech/.test(env.DATABASE_URL)) {
+    // neon-http: one HTTP request per statement, no interactive transactions.
+    transactional = false;
     cached = drizzleNeon({ client: neon(env.DATABASE_URL), schema }) as unknown as Db;
   } else {
+    transactional = true;
     const pool = new Pool({ connectionString: env.DATABASE_URL, max: 5 });
     cached = drizzlePg({ client: pool, schema }) as unknown as Db;
   }
   return cached;
+}
+
+/**
+ * True when the active driver supports `db.transaction` (node-postgres). The Neon HTTP
+ * driver does not; callers must use idempotent multi-step writes instead.
+ */
+export function supportsTransactions(): boolean {
+  getDb();
+  return transactional;
 }
 
 /** True when a database URL is configured (used for graceful UI notices). */

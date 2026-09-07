@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gte, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { getDb, type Db } from "./client";
+import { getDb, supportsTransactions, type Db } from "./client";
 import {
   LEAD_STATUSES,
   leadActivities,
@@ -61,7 +61,25 @@ export interface CreateLeadsResult {
   existing: Lead[];
 }
 
-/** Create leads, skipping parcels that already have one (unique on parcel_id). */
+/** Insert the permit snapshot and the "created" activity for a freshly inserted lead. */
+async function insertLeadChildren(exec: Db, leadId: number, input: CreateLeadInput): Promise<void> {
+  if (input.permits.length > 0) {
+    await exec.insert(leadPermits).values(input.permits.map((p) => ({ ...p, leadId })));
+  }
+  await exec.insert(leadActivities).values({ leadId, type: "created", body: input.summary });
+}
+
+/**
+ * Create leads, skipping parcels that already have one (unique on `parcel_id`).
+ *
+ * Atomicity: on drivers with transaction support (node-postgres, Neon WebSocket) each lead
+ * and its children are written in one transaction. The Neon HTTP driver has no
+ * transactions (each statement is its own request), so there the multi-step path is made
+ * idempotent instead: the lead row is inserted with ON CONFLICT DO NOTHING, and children are
+ * keyed by `lead_id`; if a previous attempt inserted the lead but crashed before writing its
+ * children (no "created" activity yet), a retry re-creates the snapshot and activity for that
+ * lead instead of reporting it as "existing".
+ */
 export async function createLeads(
   inputs: CreateLeadInput[],
   db: Db = getDb(),
@@ -69,30 +87,47 @@ export async function createLeads(
   const created: Lead[] = [];
   const existing: Lead[] = [];
   for (const input of inputs) {
-    const inserted = await db
-      .insert(leads)
-      .values(input.lead)
-      .onConflictDoNothing({ target: leads.parcelId })
-      .returning();
-    const lead = inserted[0];
-    if (!lead) {
-      const found = await db
-        .select()
-        .from(leads)
-        .where(eq(leads.parcelId, input.lead.parcelId))
-        .limit(1);
-      if (found[0]) existing.push(found[0]);
-      continue;
-    }
-    if (input.permits.length > 0) {
-      await db.insert(leadPermits).values(input.permits.map((p) => ({ ...p, leadId: lead.id })));
-    }
-    await db
-      .insert(leadActivities)
-      .values({ leadId: lead.id, type: "created", body: input.summary });
-    created.push(lead);
+    const outcome = supportsTransactions()
+      ? await db.transaction((tx) => createOneLead(tx as unknown as Db, input))
+      : await createOneLead(db, input);
+    if (outcome.status === "created") created.push(outcome.lead);
+    else existing.push(outcome.lead);
   }
   return { created, existing };
+}
+
+async function createOneLead(
+  exec: Db,
+  input: CreateLeadInput,
+): Promise<{ status: "created" | "existing"; lead: Lead }> {
+  const inserted = await exec
+    .insert(leads)
+    .values(input.lead)
+    .onConflictDoNothing({ target: leads.parcelId })
+    .returning();
+  const lead = inserted[0];
+  if (lead) {
+    await insertLeadChildren(exec, lead.id, input);
+    return { status: "created", lead };
+  }
+  const [found] = await exec
+    .select()
+    .from(leads)
+    .where(eq(leads.parcelId, input.lead.parcelId))
+    .limit(1);
+  if (!found) throw new Error(`Lead for parcel ${input.lead.parcelId} vanished during insert`);
+  // Repair a half-written lead from an earlier non-transactional attempt.
+  const [createdActivity] = await exec
+    .select({ id: leadActivities.id })
+    .from(leadActivities)
+    .where(and(eq(leadActivities.leadId, found.id), eq(leadActivities.type, "created")))
+    .limit(1);
+  if (!createdActivity) {
+    await exec.delete(leadPermits).where(eq(leadPermits.leadId, found.id));
+    await insertLeadChildren(exec, found.id, input);
+    return { status: "created", lead: found };
+  }
+  return { status: "existing", lead: found };
 }
 
 /** List leads with filters, newest first (or nearest first when a radius is given). */

@@ -78,7 +78,10 @@ export async function callMcpTool<T>(tool: string, args: Record<string, unknown>
     return await attempt();
   } catch (err) {
     if (err instanceof McpError) throw err;
-    connected = null; // transport problem: reconnect once
+    // Transport problem: close the old client/transport, then reconnect once.
+    const stale = connected;
+    connected = null;
+    if (stale) await stale.then((c) => c.close()).catch(() => undefined);
     try {
       return await attempt();
     } catch (err2) {
