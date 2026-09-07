@@ -1,0 +1,14 @@
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+*.tsbuildinfo
+next-env.d.ts
+.vercel
+coverage
+
+# Copied from maplibre-gl on postinstall
+public/maplibre-gl-worker.mjs
+public/maplibre-gl-shared.mjs
