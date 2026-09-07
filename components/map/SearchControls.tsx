@@ -192,6 +192,14 @@ export function SearchControls({
           />
           + years
         </label>
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={form.ratedContractorOnly}
+            onChange={(e) => onChange({ ratedContractorOnly: e.target.checked })}
+          />
+          Rated contractor only (BBB)
+        </label>
         <label className="mt-1 flex items-center justify-between gap-2">
           <span>Property type</span>
           <select

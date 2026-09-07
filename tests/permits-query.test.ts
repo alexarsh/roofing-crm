@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  bbbRatingRank,
   buildOpenRoofPermitsQuery,
+  buildParcelBbbRatingsQuery,
   buildPermitsForParcelQuery,
   buildPermitsForParcelsQuery,
 } from "@/lib/queries/permits";
@@ -39,5 +41,22 @@ describe("parcel permit queries", () => {
     expect(sql).toContain("ORDER BY is_roofing DESC, is_open DESC");
     expect(() => buildPermitsForParcelQuery("1;2")).toThrow(RangeError);
     expect(buildPermitsForParcelsQuery(["1", "2"], true)).toContain("AND is_roofing");
+  });
+});
+
+describe("BBB rating helpers", () => {
+  it("ranks ratings best-first and unknowns last", () => {
+    expect(bbbRatingRank("A+")).toBeLessThan(bbbRatingRank("A"));
+    expect(bbbRatingRank("B-")).toBeLessThan(bbbRatingRank("F"));
+    expect(bbbRatingRank("zz")).toBeGreaterThan(bbbRatingRank("F"));
+    expect(bbbRatingRank(null)).toBeGreaterThan(bbbRatingRank("F"));
+  });
+  it("builds a grouped ratings query over validated parcel ids", () => {
+    const sql = buildParcelBbbRatingsQuery(["P1", "P2"]);
+    expect(sql).toContain("bbb_rating IS NOT NULL");
+    expect(sql).toContain("IN ('P1', 'P2')");
+    expect(sql).toContain("bool_or(is_roofing)");
+    expect(() => buildParcelBbbRatingsQuery(["x'1"])).toThrow(RangeError);
+    expect(() => buildParcelBbbRatingsQuery([])).toThrow(RangeError);
   });
 });

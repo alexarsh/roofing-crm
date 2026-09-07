@@ -97,6 +97,7 @@ export const leadPermits = pgTable(
     bbbRating: text("bbb_rating"),
     bbbAccredited: boolean("bbb_accredited"),
     bbbProfileUrl: text("bbb_profile_url"),
+    bbbMatchMethod: text("bbb_match_method"),
     sourceUrl: text("source_url"),
   },
   (t) => [index("lead_permits_lead_idx").on(t.leadId)],

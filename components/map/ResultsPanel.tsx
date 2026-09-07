@@ -90,6 +90,7 @@ export function ResultsPanel(props: ResultsPanelProps) {
             <span>{formatInt(result.totals.openPermits)} open permits</span>
             <span>{formatInt(result.totals.longOpenPermits)} long-open</span>
             <span>{formatInt(result.totals.outOfStateOwners)} out-of-state owners</span>
+            <span>{formatInt(result.totals.bbbParcels)} with BBB-rated contractor</span>
           </div>
         )}
         {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
@@ -186,6 +187,18 @@ export function ResultsPanel(props: ResultsPanelProps) {
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-1">
                   <SignalBadge signal={r.signal} />
+                  {r.hasBbbContractor && (
+                    <span
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-800"
+                      title={
+                        r.bbbBestRating
+                          ? `Best BBB rating ${r.bbbBestRating}${r.bbbContractorName ? ` (${titleCase(r.bbbContractorName)})` : ""}${r.bbbMatchMethod ? `, matched by ${r.bbbMatchMethod}` : ""}`
+                          : "A permit on this parcel has a BBB-rated contractor"
+                      }
+                    >
+                      {r.bbbBestRating ? `BBB ${r.bbbBestRating}` : "BBB-rated contractor"}
+                    </span>
+                  )}
                   {leadId && (
                     <Link
                       href={`/leads/${leadId}`}

@@ -95,10 +95,12 @@ describe("/api/search validation", () => {
 });
 
 describe("/api/leads validation", () => {
-  it("rejects a body without parcelIds", async () => {
+  it("rejects a body without parcelIds or with bad thresholds", async () => {
     const { POST } = await import("@/app/api/leads/route");
-    const res = await POST(json("/api/leads", "POST", { nope: true }));
-    expect(res.status).toBe(400);
+    expect((await POST(json("/api/leads", "POST", { nope: true }))).status).toBe(400);
+    expect(
+      (await POST(json("/api/leads", "POST", { parcelIds: ["P1"], roofAgeMin: -1 }))).status,
+    ).toBe(400);
   });
   it("rejects an unknown status filter", async () => {
     const { GET } = await import("@/app/api/leads/route");
@@ -134,7 +136,11 @@ describe.skipIf(!TEST_DB)("/api/leads create -> list -> delete (TEST_DATABASE_UR
   it("creates a lead from the mocked MCP parcel, lists it, updates status, deletes it", async () => {
     const leadsRoute = await import("@/app/api/leads/route");
     const created = await leadsRoute.POST(
-      json("/api/leads", "POST", { parcelIds: [PARCEL, "UNKNOWN1"] }),
+      json("/api/leads", "POST", {
+        parcelIds: [PARCEL, "UNKNOWN1"],
+        roofAgeMin: 15,
+        longOpenYears: 5,
+      }),
     );
     expect(created.status).toBe(201);
     const body = (await created.json()) as {

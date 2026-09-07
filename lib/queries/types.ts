@@ -51,6 +51,10 @@ export interface PropertyCandidate {
   oldestOpenRoofPermitDays: number | null;
   permitCount: number;
   hasBbbContractor: boolean | null;
+  /** Best BBB rating among the parcel's rated contractors (filled by the search service). */
+  bbbBestRating: string | null;
+  bbbMatchMethod: string | null;
+  bbbContractorName: string | null;
   ownerName: string | null;
   ownersText: string | null;
   ownerMailCity: string | null;
@@ -152,6 +156,9 @@ export function mapPropertyRow(
     oldestOpenRoofPermitDays: base.oldestOpenRoofPermitDays,
     permitCount: toNum(row.permit_count) ?? 0,
     hasBbbContractor: toBool(row.has_bbb_contractor),
+    bbbBestRating: null,
+    bbbMatchMethod: null,
+    bbbContractorName: null,
     ownerName: toStr(row.owner_name),
     ownersText: toStr(row.owners_text),
     ownerMailCity: toStr(row.owner_mail_city),

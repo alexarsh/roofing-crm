@@ -13,8 +13,8 @@ export function productionAgentTools() {
   return createAgentTools({
     mcp,
     knowledge: (q, limit) => searchKnowledge(q, limit),
-    createLeads: async (parcelIds) => {
-      const r = await createLeadsFromParcels(parcelIds);
+    createLeads: async (parcelIds, thresholds) => {
+      const r = await createLeadsFromParcels(parcelIds, mcp, thresholds);
       const pick = (l: { id: number; parcelId: string; address: string }) => ({
         id: l.id,
         parcelId: l.parcelId,

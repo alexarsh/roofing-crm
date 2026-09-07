@@ -99,3 +99,41 @@ export function buildOpenRoofPermitsQuery(input: z.input<typeof openPermitSearch
     `ORDER BY days_open DESC\nLIMIT ${int(p.limit, { min: 1, max: 500 })}`;
   return { sql, params: p };
 }
+
+/** BBB letter ratings from best to worst (used to pick a parcel's best-rated contractor). */
+export const BBB_RATING_ORDER = [
+  "A+",
+  "A",
+  "A-",
+  "B+",
+  "B",
+  "B-",
+  "C+",
+  "C",
+  "C-",
+  "D+",
+  "D",
+  "D-",
+  "F",
+] as const;
+
+/** Rank of a rating (lower is better); unknown ratings sort last. */
+export function bbbRatingRank(rating: string | null | undefined): number {
+  const i = (BBB_RATING_ORDER as readonly string[]).indexOf((rating ?? "").toUpperCase());
+  return i === -1 ? BBB_RATING_ORDER.length : i;
+}
+
+/**
+ * Rated contractors per parcel (one row per parcel/rating/method/contractor, roofing flagged),
+ * used to decorate search results with the best BBB rating. Cheap: an IN-list over permits.
+ */
+export function buildParcelBbbRatingsQuery(parcelNumbers: readonly string[]): string {
+  if (parcelNumbers.length === 0 || parcelNumbers.length > 100)
+    throw new RangeError("Provide 1-100 parcel ids");
+  const list = parcelNumbers.map(idLiteral).join(", ");
+  return (
+    `SELECT parcel_identifier, bbb_rating, bbb_match_method, contractor_name, bool_or(is_roofing) AS any_roofing, count(*) AS n\n` +
+    `FROM permits\nWHERE parcel_identifier IN (${list}) AND bbb_rating IS NOT NULL\n` +
+    `GROUP BY 1, 2, 3, 4\nLIMIT 1000`
+  );
+}

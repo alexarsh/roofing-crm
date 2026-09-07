@@ -25,6 +25,28 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** Years since an ISO date, as of now (null when unknown). */
+function yearsSince(iso: string | null): number | null {
+  if (!iso) return null;
+  const t = new Date(iso).getTime();
+  return Number.isNaN(t) ? null : (Date.now() - t) / (365.25 * 86400000);
+}
+
+/**
+ * Human label for a permit's lifecycle: open duration while open; for voided/expired permits
+ * how long ago they were issued; for finaled/closed permits how long they took.
+ */
+export function permitOutcome(p: PermitRecord): string {
+  if (p.isOpen) return formatDuration(p.daysOpen);
+  const status = (p.status ?? "closed").toLowerCase();
+  if (status === "voided" || status === "expired" || status === "withdrawn") {
+    const y = yearsSince(p.issueDate);
+    return `${status} · issued ${y === null ? "n/a" : `${y.toFixed(1)} y`} ago`;
+  }
+  const closed = formatDate(p.closeDate ?? p.finalInspectionDate);
+  return `${status} · closed after ${formatDuration(p.daysOpen)}${closed !== "n/a" ? ` (${closed})` : ""}`;
+}
+
 /** Contractor + BBB block for one permit; shows "not available" explicitly. */
 function PermitCard({ p }: { p: PermitRecord }) {
   return (
@@ -43,14 +65,7 @@ function PermitCard({ p }: { p: PermitRecord }) {
       </div>
       <dl className="mt-1">
         <Row label="Issued" value={formatDate(p.issueDate)} />
-        <Row
-          label={p.isOpen ? "Open for" : "Closed"}
-          value={
-            p.isOpen
-              ? formatDuration(p.daysOpen)
-              : `${formatDate(p.closeDate ?? p.finalInspectionDate)} (${formatDuration(p.daysOpen)})`
-          }
-        />
+        <Row label={p.isOpen ? "Open for" : "Outcome"} value={permitOutcome(p)} />
         {p.expirationDate && <Row label="Expires" value={formatDate(p.expirationDate)} />}
         <Row label="Agency" value={p.issuingAgency ?? p.sourceSystem ?? "n/a"} />
         <Row

@@ -196,7 +196,8 @@ describe("agent tools", () => {
       created: Array<{ id: number }>;
     };
     expect(c.created[0]?.id).toBe(1);
-    expect(d.createLeads).toHaveBeenCalledWith(["P1"]);
+    expect(d.createLeads.mock.calls[0]?.[0]).toEqual(["P1"]);
+    expect(d.createLeads.mock.calls[0]?.[1]).toBeUndefined();
   });
 });
 

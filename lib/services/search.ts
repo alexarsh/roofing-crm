@@ -11,11 +11,18 @@ import {
   type SearchParams,
   type SearchParamsInput,
 } from "@/lib/queries/properties";
-import { buildPermitsForParcelQuery, buildPermitsForParcelsQuery } from "@/lib/queries/permits";
+import {
+  bbbRatingRank,
+  buildParcelBbbRatingsQuery,
+  buildPermitsForParcelQuery,
+  buildPermitsForParcelsQuery,
+} from "@/lib/queries/permits";
 import {
   mapPermitRow,
   mapPropertyRow,
+  toBool,
   toNum,
+  toStr,
   type PermitRecord,
   type PropertyCandidate,
 } from "@/lib/queries/types";
@@ -37,6 +44,7 @@ export interface SearchResult {
     longOpenPermits: number;
     agedRoofs: number;
     outOfStateOwners: number;
+    bbbParcels: number;
   };
   truncated: boolean;
   sql: { rows: string; count: string };
@@ -61,8 +69,12 @@ export async function searchCandidates(
     longOpenPermits: toNum(c.long_open_permits) ?? 0,
     agedRoofs: toNum(c.aged_roofs) ?? 0,
     outOfStateOwners: toNum(c.out_of_state_owners) ?? 0,
+    bbbParcels: toNum(c.bbb_parcels) ?? 0,
   };
-  const rows = rowsRes.rows.map((r) => mapPropertyRow(r, thresholds));
+  const rows = await decorateBestBbbRating(
+    rowsRes.rows.map((r) => mapPropertyRow(r, thresholds)),
+    source,
+  );
   return {
     params,
     rows,
@@ -104,17 +116,59 @@ export async function getPropertyDetail(
   return { property, permits: permitsRes.rows.map(mapPermitRow) };
 }
 
+/**
+ * Fill `bbbBestRating` / `bbbMatchMethod` / `bbbContractorName` for candidates whose parcel has a
+ * BBB-rated contractor. One extra MCP query per 100 rated parcels; roofing permits win ties.
+ */
+export async function decorateBestBbbRating(
+  rows: PropertyCandidate[],
+  source: McpDataSource,
+): Promise<PropertyCandidate[]> {
+  const rated = rows.filter((r) => r.hasBbbContractor);
+  if (rated.length === 0) return rows;
+  const ids = [...new Set(rated.map((r) => r.parcelNumber ?? r.parcelId))];
+  const best = new Map<
+    string,
+    { rating: string; method: string | null; contractor: string | null; roofing: boolean }
+  >();
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const res = await source.queryPermits(buildParcelBbbRatingsQuery(chunk), 1000);
+    for (const row of res.rows) {
+      const key = String(row.parcel_identifier ?? "");
+      const rating = toStr(row.bbb_rating);
+      if (!key || !rating) continue;
+      const candidate = {
+        rating,
+        method: toStr(row.bbb_match_method),
+        contractor: toStr(row.contractor_name),
+        roofing: toBool(row.any_roofing) ?? false,
+      };
+      const current = best.get(key);
+      const better =
+        !current ||
+        (candidate.roofing && !current.roofing) ||
+        (candidate.roofing === current.roofing &&
+          bbbRatingRank(candidate.rating) < bbbRatingRank(current.rating));
+      if (better) best.set(key, candidate);
+    }
+  }
+  return rows.map((r) => {
+    const b = best.get(r.parcelNumber ?? r.parcelId);
+    return b
+      ? { ...r, bbbBestRating: b.rating, bbbMatchMethod: b.method, bbbContractorName: b.contractor }
+      : r;
+  });
+}
+
 /** Fetch many properties and their roofing permits (lead creation). */
 export async function getPropertiesWithPermits(
   parcelIds: readonly string[],
   source: McpDataSource = mcp,
+  thresholds: SignalThresholds = DEFAULT_THRESHOLDS,
 ): Promise<Array<{ property: PropertyCandidate; permits: PermitRecord[] }>> {
   const unique = [...new Set(parcelIds)];
   if (unique.length === 0) return [];
-  const thresholds = {
-    roofAgeYears: OSCEOLA.thresholds.roofAgeYears,
-    longOpenDays: OSCEOLA.thresholds.longOpenPermitYears * 365,
-  };
   const props = (
     await source.queryProperties(buildPropertiesByIdsQuery(unique), unique.length)
   ).rows.map((r) => mapPropertyRow(r, thresholds));

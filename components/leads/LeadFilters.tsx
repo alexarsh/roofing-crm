@@ -13,14 +13,16 @@ export function LeadFilters() {
 
   const update = useCallback(
     (patch: Record<string, string | null>) => {
-      const next = new URLSearchParams(params.toString());
+      // Read the live URL rather than the captured `params` so rapid successive edits
+      // (e.g. typing in a number field) never overwrite each other.
+      const next = new URLSearchParams(window.location.search);
       for (const [k, v] of Object.entries(patch)) {
         if (v === null || v === "") next.delete(k);
         else next.set(k, v);
       }
       router.replace(`${pathname}?${next.toString()}`);
     },
-    [params, pathname, router],
+    [pathname, router],
   );
 
   const hasRadius = params.has("lat");

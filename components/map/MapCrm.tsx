@@ -28,6 +28,7 @@ const DEFAULT_FORM: SearchForm = {
   ownerOutOfState: false,
   noSaleEnabled: false,
   noSaleYears: OSCEOLA.thresholds.ownershipTenureYears,
+  ratedContractorOnly: false,
   propertyType: "all",
 };
 
@@ -39,6 +40,7 @@ function toQuery(center: LatLng, f: SearchForm): URLSearchParams {
     roofAgeMin: String(f.roofAgeMin),
     openPermitsOnly: String(f.openPermitsOnly),
     ownerOutOfState: String(f.ownerOutOfState),
+    ratedContractorOnly: String(f.ratedContractorOnly),
     propertyType: f.propertyType,
     limit: "500",
   });
@@ -174,7 +176,11 @@ export function MapCrm() {
         const res = await fetch("/api/leads", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ parcelIds: ids }),
+          body: JSON.stringify({
+            parcelIds: ids,
+            roofAgeMin: form.roofAgeMin,
+            ...(form.longOpenEnabled ? { longOpenYears: form.longOpenYears } : {}),
+          }),
         });
         const body = (await res.json()) as {
           created: { id: number; parcelId: string }[];
@@ -197,7 +203,7 @@ export function MapCrm() {
         setCreating(false);
       }
     },
-    [result?.leadIds],
+    [result?.leadIds, form.roofAgeMin, form.longOpenEnabled, form.longOpenYears],
   );
 
   const selectedIds = useMemo(() => selected as ReadonlySet<string>, [selected]);

@@ -47,6 +47,8 @@ export const searchParamsSchema = z.object({
   ownerOutOfState: boolParam.default(false),
   /** Only properties with no sale in at least this many years. */
   noSaleYears: nullableNumParam(0, 100).default(null),
+  /** Only parcels where some permit has a BBB-rated contractor (`has_bbb_contractor`). */
+  ratedContractorOnly: boolParam.default(false),
   propertyType: z.enum(["residential", "commercial", "all"]).default("all"),
   sort: z.enum(SORT_KEYS).default("priority"),
   limit: z.coerce.number().int().min(1).max(1000).default(500),
@@ -78,6 +80,7 @@ function whereClause(p: SearchParams): string {
   }
   if (p.longOpenYears !== null) clauses.push(`oldest_open_roof_permit_days >= ${longOpenDays(p)}`);
   if (p.ownerOutOfState) clauses.push("owner_out_of_state = true");
+  if (p.ratedContractorOnly) clauses.push("has_bbb_contractor = true");
   if (p.noSaleYears !== null)
     clauses.push(`years_since_sale >= ${num(p.noSaleYears, { min: 0, max: 100, decimals: 1 })}`);
   const type = oneOf(p.propertyType, ["residential", "commercial", "all"] as const);
@@ -156,7 +159,8 @@ export function buildCandidateCountQuery(input: SearchParamsInput): {
     `  count(*) FILTER (WHERE open_roof_permit_count > 0) AS open_permits,\n` +
     `  count(*) FILTER (WHERE open_roof_permit_count > 0 AND oldest_open_roof_permit_days >= ${longOpenDays(p)}) AS long_open_permits,\n` +
     `  count(*) FILTER (WHERE roof_age_years >= ${roofAge}) AS aged_roofs,\n` +
-    `  count(*) FILTER (WHERE owner_out_of_state) AS out_of_state_owners\n` +
+    `  count(*) FILTER (WHERE owner_out_of_state) AS out_of_state_owners,\n` +
+    `  count(*) FILTER (WHERE has_bbb_contractor) AS bbb_parcels\n` +
     `FROM properties\nWHERE ${whereClause(p)}`;
   return { sql, params: p };
 }

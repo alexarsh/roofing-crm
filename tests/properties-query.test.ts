@@ -56,6 +56,14 @@ describe("buildCandidateQuery", () => {
     expect(sql).toContain("property_type = 'residential'");
     expect(sql).not.toContain("roof_age_years >= 20 OR");
   });
+  it("adds the BBB-rated-contractor filter and count", () => {
+    const { sql } = buildCandidateQuery({ ...base, ratedContractorOnly: "true" });
+    expect(sql).toContain("has_bbb_contractor = true");
+    expect(buildCandidateQuery(base).sql).not.toContain("has_bbb_contractor = true");
+    expect(buildCandidateCountQuery(base).sql).toContain(
+      "FILTER (WHERE has_bbb_contractor) AS bbb_parcels",
+    );
+  });
   it("never interpolates raw strings from input", () => {
     expect(() => buildCandidateQuery({ ...base, propertyType: "x' OR 1=1" })).toThrow();
     expect(() => buildCandidateQuery({ ...base, sort: "DROP" })).toThrow();

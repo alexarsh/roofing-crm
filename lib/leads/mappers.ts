@@ -73,6 +73,7 @@ export function toLeadPermits(leadId: number, permits: readonly PermitRecord[]):
     bbbRating: pr.bbbRating,
     bbbAccredited: pr.bbbAccredited,
     bbbProfileUrl: pr.bbbProfileUrl,
+    bbbMatchMethod: pr.bbbMatchMethod,
     sourceUrl: pr.sourceUrl,
   }));
 }

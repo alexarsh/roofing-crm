@@ -27,7 +27,10 @@ export interface AgentToolDeps {
     query: string,
     limit?: number,
   ) => Promise<Array<{ id: string; title: string; section: string; body: string; source: string }>>;
-  createLeads: (parcelIds: string[]) => Promise<{
+  createLeads: (
+    parcelIds: string[],
+    thresholds?: { roofAgeYears: number; longOpenDays: number },
+  ) => Promise<{
     created: Array<{ id: number; parcelId: string; address: string }>;
     existing: Array<{ id: number; parcelId: string; address: string }>;
     unknown: string[];
@@ -155,6 +158,7 @@ export function createAgentTools(deps: AgentToolDeps): ToolSet {
               oldestOpenRoofPermitDays: p.oldestOpenRoofPermitDays,
               ownerName: p.ownerName,
               ownerOutOfState: p.ownerOutOfState,
+              hasBbbContractor: p.hasBbbContractor,
               marketValue: p.marketValue,
               distanceMiles:
                 p.distanceMiles === null ? null : Math.round(p.distanceMiles * 100) / 100,
@@ -225,8 +229,34 @@ export function createAgentTools(deps: AgentToolDeps): ToolSet {
     createLead: tool({
       description:
         "Create CRM lead records for one or more parcel ids (request_identifier) returned by a previous search. Only call when the user explicitly asks to create/save leads. Returns created and pre-existing leads.",
-      inputSchema: z.object({ parcelIds: z.array(z.string().min(1).max(64)).min(1).max(25) }),
-      execute: async ({ parcelIds }) => deps.createLeads(parcelIds),
+      inputSchema: z.object({
+        parcelIds: z.array(z.string().min(1).max(64)).min(1).max(25),
+        roofAgeMin: z
+          .number()
+          .int()
+          .min(0)
+          .max(150)
+          .optional()
+          .describe("Roof-age threshold used in the search"),
+        longOpenYears: z
+          .number()
+          .min(0)
+          .max(50)
+          .optional()
+          .describe("Long-open threshold (years) used in the search"),
+      }),
+      execute: async ({ parcelIds, roofAgeMin, longOpenYears }) =>
+        deps.createLeads(
+          parcelIds,
+          roofAgeMin !== undefined || longOpenYears !== undefined
+            ? {
+                roofAgeYears: roofAgeMin ?? OSCEOLA.thresholds.roofAgeYears,
+                longOpenDays: Math.round(
+                  (longOpenYears ?? OSCEOLA.thresholds.longOpenPermitYears) * 365,
+                ),
+              }
+            : undefined,
+        ),
     }),
   };
 }

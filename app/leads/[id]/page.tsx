@@ -6,6 +6,18 @@ import { Pill, SignalBadge, StatusBadge } from "@/components/ui/Badge";
 import { getLead } from "@/lib/db/leads";
 import { formatDate, formatDateTime, formatDuration, formatUsd, titleCase } from "@/lib/format";
 import type { LeadSignal } from "@/lib/queries/types";
+import type { LeadPermit } from "@/lib/db/schema";
+
+/** Lifecycle label for a snapshotted (closed) permit. */
+function leadPermitOutcome(p: LeadPermit): string {
+  const status = (p.status ?? "closed").toLowerCase();
+  if (status === "voided" || status === "expired" || status === "withdrawn") {
+    const t = p.issueDate ? new Date(p.issueDate).getTime() : Number.NaN;
+    const years = Number.isNaN(t) ? null : (Date.now() - t) / (365.25 * 86400000);
+    return `${status} · issued ${years === null ? "n/a" : `${years.toFixed(1)} y`} ago`;
+  }
+  return `${status} · closed after ${formatDuration(p.daysOpen)}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -158,9 +170,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                         <Pill tone={p.isOpen ? "warn" : "neutral"}>{p.status ?? "unknown"}</Pill>
                       </td>
                       <td className="py-1.5 pr-3">
-                        {p.isOpen
-                          ? `open ${formatDuration(p.daysOpen)}`
-                          : formatDuration(p.daysOpen)}
+                        {p.isOpen ? `open ${formatDuration(p.daysOpen)}` : leadPermitOutcome(p)}
                       </td>
                       <td className="py-1.5 pr-3">{formatDate(p.issueDate)}</td>
                       <td className="py-1.5 pr-3">
@@ -185,6 +195,7 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
                           <span>
                             {p.bbbRating}
                             {p.bbbAccredited ? " · accredited" : ""}
+                            {p.bbbMatchMethod ? ` · matched by ${p.bbbMatchMethod}` : ""}
                             {p.bbbProfileUrl && (
                               <>
                                 {" "}

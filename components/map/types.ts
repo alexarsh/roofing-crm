@@ -11,6 +11,7 @@ export interface SearchForm {
   ownerOutOfState: boolean;
   noSaleEnabled: boolean;
   noSaleYears: number;
+  ratedContractorOnly: boolean;
   propertyType: "residential" | "commercial" | "all";
 }
 
@@ -24,6 +25,7 @@ export interface SearchResponse {
     longOpenPermits: number;
     agedRoofs: number;
     outOfStateOwners: number;
+    bbbParcels: number;
   };
   truncated: boolean;
   sql: { rows: string; count: string };

@@ -111,7 +111,14 @@ describe("lead mappers", () => {
       roofAgeYears: 30,
     });
     const permits = toLeadPermits(7, [
-      mapPermitRow({ permit_number: "A", is_open: true, days_open: 400, source_url: "u" }),
+      mapPermitRow({
+        permit_number: "A",
+        is_open: true,
+        days_open: 400,
+        source_url: "u",
+        bbb_rating: "A+",
+        bbb_match_method: "license",
+      }),
     ]);
     expect(permits[0]).toMatchObject({
       leadId: 7,
@@ -119,6 +126,8 @@ describe("lead mappers", () => {
       isOpen: true,
       daysOpen: 400,
       sourceUrl: "u",
+      bbbRating: "A+",
+      bbbMatchMethod: "license",
     });
     expect(creationSummary(property, 1)).toContain("Aged roof");
   });
